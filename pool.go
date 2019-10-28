@@ -95,6 +95,9 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						<-timer.C
 					}
 					timer.Reset(p.ConnTTL)
+
+					// delay
+					time.Sleep(p.TimeBetweenWork)
 				case <-timer.C:
 					p.Logger.Infof("Closing connection")
 
