@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type Work func(Conn) error
+type Work func(context.Context, Conn) error
 
 type Pool struct {
 	ConnTTL         time.Duration
@@ -78,7 +78,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					conn.netconn().SetDeadline(time.Time{})
 
 					// do the work!
-					err = req.work(conn)
+					err = req.work(req.ctx, conn)
 					req.resp <- err
 
 					// close the connection if necessary
