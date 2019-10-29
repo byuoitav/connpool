@@ -1,4 +1,4 @@
-package pooled
+package connpool
 
 import (
 	"bufio"

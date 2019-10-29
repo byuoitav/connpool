@@ -1,4 +1,4 @@
-package pooled
+package connpool
 
 type Logger interface {
 	Debugf(format string, a ...interface{})
