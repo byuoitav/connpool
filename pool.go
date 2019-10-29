@@ -52,7 +52,10 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					}
 
 					if conn == nil {
-						p.Logger.Infof("Opening new connection")
+						if p.Logger != nil {
+							p.Logger.Infof("Opening new connection")
+						}
+
 						nconn, err := p.NewConnection(req.ctx)
 						if err != nil {
 							req.resp <- fmt.Errorf("failed to open new connection: %w", err)
@@ -60,9 +63,14 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						}
 
 						conn = Wrap(nconn)
-						p.Logger.Infof("Successfully opened new connection")
+
+						if p.Logger != nil {
+							p.Logger.Infof("Successfully opened new connection")
+						}
 					} else {
-						p.Logger.Infof("Reusing open connection")
+						if p.Logger != nil {
+							p.Logger.Infof("Reusing open connection")
+						}
 					}
 
 					// reset the buffer by reading everything currently in it
@@ -72,7 +80,9 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						req.resp <- fmt.Errorf("failed to empty buffer: %s", err)
 						continue
 					case len(bytes) > 0:
-						p.Logger.Debugf("Read %v leftover bytes: 0x%x", len(bytes), bytes)
+						if p.Logger != nil {
+							p.Logger.Debugf("Read %v leftover bytes: 0x%x", len(bytes), bytes)
+						}
 					}
 
 					// reset the deadlines
@@ -86,7 +96,9 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					var nerr net.Error
 					if errors.As(err, &nerr) && (!nerr.Temporary() || nerr.Timeout()) {
 						// if it was a timeout error, close the connection
-						p.Logger.Warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
+						if p.Logger != nil {
+							p.Logger.Warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
+						}
 						closeConn()
 						continue
 					}
@@ -100,14 +112,18 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					// delay
 					time.Sleep(p.Delay)
 				case <-timer.C:
-					p.Logger.Infof("Closing connection")
+					if p.Logger != nil {
+						p.Logger.Infof("Closing connection")
+					}
 
 					closeConn()
 				}
 			}
 		}()
 
-		p.Logger.Infof("Started pool")
+		if p.Logger != nil {
+			p.Logger.Infof("Started pool")
+		}
 	})
 
 	req := request{
