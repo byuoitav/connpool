@@ -13,10 +13,10 @@ type NewConnectionFunc func(context.Context) (net.Conn, error)
 type Work func(context.Context, Conn) error
 
 type Pool struct {
-	ConnTTL         time.Duration
-	TimeBetweenWork time.Duration
-	NewConnection   NewConnectionFunc
-	Logger          Logger
+	NewConnection NewConnectionFunc
+	TTL           time.Duration
+	Delay         time.Duration
+	Logger        Logger
 
 	init sync.Once
 	reqs chan request
@@ -34,7 +34,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 
 		go func() {
 			var conn Conn
-			timer := time.NewTimer(p.ConnTTL)
+			timer := time.NewTimer(p.TTL)
 
 			closeConn := func() {
 				if conn != nil {
@@ -66,7 +66,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					}
 
 					// reset the buffer by reading everything currently in it
-					bytes, err := conn.EmptyReadBuffer(p.ConnTTL)
+					bytes, err := conn.EmptyReadBuffer(p.TTL)
 					switch {
 					case err != nil:
 						req.resp <- fmt.Errorf("failed to empty buffer: %s", err)
@@ -95,10 +95,10 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					if !timer.Stop() {
 						<-timer.C
 					}
-					timer.Reset(p.ConnTTL)
+					timer.Reset(p.TTL)
 
 					// delay
-					time.Sleep(p.TimeBetweenWork)
+					time.Sleep(p.Delay)
 				case <-timer.C:
 					p.Logger.Infof("Closing connection")
 
