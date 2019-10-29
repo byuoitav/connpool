@@ -9,12 +9,13 @@ import (
 	"time"
 )
 
+type NewConnectionFunc func(context.Context) (net.Conn, error)
 type Work func(context.Context, Conn) error
 
 type Pool struct {
 	ConnTTL         time.Duration
 	TimeBetweenWork time.Duration
-	NewConnection   func(context.Context) (net.Conn, error)
+	NewConnection   NewConnectionFunc
 	Logger          Logger
 
 	init sync.Once
