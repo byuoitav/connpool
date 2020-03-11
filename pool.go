@@ -35,6 +35,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 		go func() {
 			var conn Conn
 			timer := time.NewTimer(p.TTL)
+			drained := false
 
 			closeConn := func() {
 				if conn != nil {
@@ -99,19 +100,24 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						if p.Logger != nil {
 							p.Logger.Warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
 						}
+
 						closeConn()
 						continue
 					}
 
 					// reset timer since we did something
-					if !timer.Stop() {
+					if !timer.Stop() && !drained {
 						<-timer.C
 					}
+
 					timer.Reset(p.TTL)
+					drained = false
 
 					// delay
 					time.Sleep(p.Delay)
 				case <-timer.C:
+					drained = true
+
 					if p.Logger != nil {
 						p.Logger.Infof("Closing connection")
 					}
