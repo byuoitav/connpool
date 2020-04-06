@@ -53,9 +53,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					}
 
 					if conn == nil {
-						if p.Logger != nil {
-							p.Logger.Infof("Opening new connection")
-						}
+						p.infof("Opening new connection")
 
 						nconn, err := p.NewConnection(req.ctx)
 						if err != nil {
@@ -65,13 +63,9 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 
 						conn = Wrap(nconn)
 
-						if p.Logger != nil {
-							p.Logger.Infof("Successfully opened new connection")
-						}
+						p.infof("Successfully opened new connection")
 					} else {
-						if p.Logger != nil {
-							p.Logger.Infof("Reusing open connection")
-						}
+						p.infof("Reusing open connection")
 					}
 
 					// reset the buffer by reading everything currently in it
@@ -81,9 +75,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						req.resp <- fmt.Errorf("failed to empty buffer: %s", err)
 						continue
 					case len(bytes) > 0:
-						if p.Logger != nil {
-							p.Logger.Debugf("Read %v leftover bytes: 0x%x", len(bytes), bytes)
-						}
+						p.debugf("Read %v leftover bytes: 0x%x", len(bytes), bytes)
 					}
 
 					// reset the deadlines
@@ -97,9 +89,7 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					var nerr net.Error
 					if errors.As(err, &nerr) && (!nerr.Temporary() || nerr.Timeout()) {
 						// if it was a timeout error, close the connection
-						if p.Logger != nil {
-							p.Logger.Warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
-						}
+						p.warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
 
 						closeConn()
 						continue
@@ -117,19 +107,13 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					time.Sleep(p.Delay)
 				case <-timer.C:
 					drained = true
-
-					if p.Logger != nil {
-						p.Logger.Infof("Closing connection")
-					}
-
+					p.infof("Closing connection")
 					closeConn()
 				}
 			}
 		}()
 
-		if p.Logger != nil {
-			p.Logger.Infof("Started pool")
-		}
+		p.infof("Started pool")
 	})
 
 	req := request{
