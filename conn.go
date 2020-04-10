@@ -3,49 +3,34 @@ package connpool
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"time"
 )
 
 // Conn .
 type Conn interface {
-	io.ReadWriter
+	net.Conn
 
 	ReadWriter() *bufio.ReadWriter
-	SetReadDeadline(t time.Time) error
-	SetWriteDeadline(t time.Time) error
 	EmptyReadBuffer(timeout time.Duration) ([]byte, error)
 	ReadUntil(delim byte, timeout time.Duration) ([]byte, error)
 }
 
 type conn struct {
-	rw   *bufio.ReadWriter
-	conn net.Conn
+	rw *bufio.ReadWriter
+	net.Conn
 }
 
 // Wrap .
 func Wrap(c net.Conn) Conn {
 	return &conn{
 		rw:   bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c)),
-		conn: c,
+		Conn: c,
 	}
 }
 
 func (c *conn) ReadWriter() *bufio.ReadWriter {
 	return c.rw
-}
-
-func (c *conn) SetDeadline(t time.Time) error {
-	return c.conn.SetDeadline(t)
-}
-
-func (c *conn) SetReadDeadline(t time.Time) error {
-	return c.conn.SetReadDeadline(t)
-}
-
-func (c *conn) SetWriteDeadline(t time.Time) error {
-	return c.conn.SetWriteDeadline(t)
 }
 
 func (c *conn) Write(p []byte) (int, error) {
@@ -62,7 +47,7 @@ func (c *conn) Read(p []byte) (int, error) {
 }
 
 func (c *conn) EmptyReadBuffer(timeout time.Duration) ([]byte, error) {
-	c.conn.SetReadDeadline(time.Now().Add(timeout))
+	c.SetReadDeadline(time.Now().Add(timeout))
 
 	total := c.rw.Reader.Buffered()
 	bytes := make([]byte, 0, total)
@@ -83,8 +68,4 @@ func (c *conn) EmptyReadBuffer(timeout time.Duration) ([]byte, error) {
 func (c *conn) ReadUntil(delim byte, timeout time.Duration) ([]byte, error) {
 	c.SetReadDeadline(time.Now().Add(timeout))
 	return c.rw.ReadBytes(delim)
-}
-
-func (c *conn) Close() error {
-	return c.conn.Close()
 }
