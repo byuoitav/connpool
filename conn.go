@@ -17,7 +17,6 @@ type Conn interface {
 	SetWriteDeadline(t time.Time) error
 	EmptyReadBuffer(timeout time.Duration) ([]byte, error)
 	ReadUntil(delim byte, timeout time.Duration) ([]byte, error)
-	netconn() net.Conn
 }
 
 type conn struct {
@@ -35,6 +34,10 @@ func Wrap(c net.Conn) Conn {
 
 func (c *conn) ReadWriter() *bufio.ReadWriter {
 	return c.rw
+}
+
+func (c *conn) SetDeadline(t time.Time) error {
+	return c.conn.SetDeadline(t)
 }
 
 func (c *conn) SetReadDeadline(t time.Time) error {
@@ -82,6 +85,6 @@ func (c *conn) ReadUntil(delim byte, timeout time.Duration) ([]byte, error) {
 	return c.rw.ReadBytes(delim)
 }
 
-func (c *conn) netconn() net.Conn {
-	return c.conn
+func (c *conn) Close() error {
+	return c.conn.Close()
 }

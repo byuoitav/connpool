@@ -18,8 +18,8 @@ type Pool struct {
 	Delay         time.Duration
 	Logger        Logger
 
-	init sync.Once
-	reqs chan request
+	init     sync.Once
+	requests chan request
 }
 
 type request struct {
@@ -30,7 +30,7 @@ type request struct {
 
 func (p *Pool) Do(ctx context.Context, work Work) error {
 	p.init.Do(func() {
-		p.reqs = make(chan request)
+		p.requests = make(chan request)
 
 		go func() {
 			var conn Conn
@@ -39,14 +39,18 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 
 			closeConn := func() {
 				if conn != nil {
-					conn.netconn().Close()
+					err := conn.Close()
+					if err != nil {
+						p.errorf("unable to close connection: %s", err)
+					}
+
 					conn = nil
 				}
 			}
 
 			for {
 				select {
-				case req := <-p.reqs:
+				case req := <-p.requests:
 					// check if context is exceeded and we can skip this one
 					if req.ctx.Err() != nil {
 						continue
@@ -55,13 +59,20 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					if conn == nil {
 						p.infof("Opening new connection")
 
-						nconn, err := p.NewConnection(req.ctx)
+						// add a timeout (in case they didn't set one!) of the ttl
+						ctx, cancel := context.WithTimeout(req.ctx, p.TTL)
+
+						netConn, err := p.NewConnection(ctx)
 						if err != nil {
-							req.resp <- fmt.Errorf("failed to open new connection: %w", err)
+							err = fmt.Errorf("failed to open new connection: %w", err)
+							p.warnf(err.Error())
+							req.resp <- err
+							cancel()
 							continue
 						}
 
-						conn = Wrap(nconn)
+						cancel()
+						conn = Wrap(netConn)
 
 						p.infof("Successfully opened new connection")
 					} else {
@@ -79,15 +90,15 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 					}
 
 					// reset the deadlines
-					conn.netconn().SetDeadline(time.Time{})
+					conn.SetDeadline(time.Time{})
 
 					// do the work!
 					err = req.work(conn)
 					req.resp <- err
 
 					// close the connection if necessary
-					var nerr net.Error
-					if errors.As(err, &nerr) && (!nerr.Temporary() || nerr.Timeout()) {
+					var netErr net.Error
+					if errors.As(err, &netErr) && (!netErr.Temporary() || netErr.Timeout()) {
 						// if it was a timeout error, close the connection
 						p.warnf("closing connection due to non-temporary or timeout error: %s", err.Error())
 
@@ -122,12 +133,17 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 		resp: make(chan error),
 	}
 
-	p.reqs <- req
+	p.requests <- req
 
 	select {
 	case err := <-req.resp:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		// drain the response channel whenever it comes back
+		go func() {
+			<-req.resp
+		}()
+
+		return fmt.Errorf("unable to do request: %w", ctx.Err())
 	}
 }
