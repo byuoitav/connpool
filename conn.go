@@ -12,8 +12,8 @@ type Conn interface {
 	net.Conn
 
 	ReadWriter() *bufio.ReadWriter
-	EmptyReadBuffer(timeout time.Duration) ([]byte, error)
-	ReadUntil(delim byte, timeout time.Duration) ([]byte, error)
+	EmptyReadBuffer(deadline time.Time) ([]byte, error)
+	ReadUntil(delim byte, deadline time.Time) ([]byte, error)
 }
 
 type conn struct {
@@ -46,8 +46,8 @@ func (c *conn) Read(p []byte) (int, error) {
 	return c.rw.Read(p)
 }
 
-func (c *conn) EmptyReadBuffer(timeout time.Duration) ([]byte, error) {
-	c.SetReadDeadline(time.Now().Add(timeout))
+func (c *conn) EmptyReadBuffer(deadline time.Time) ([]byte, error) {
+	c.SetReadDeadline(deadline)
 
 	total := c.rw.Reader.Buffered()
 	bytes := make([]byte, 0, total)
@@ -65,7 +65,7 @@ func (c *conn) EmptyReadBuffer(timeout time.Duration) ([]byte, error) {
 	return bytes, nil
 }
 
-func (c *conn) ReadUntil(delim byte, timeout time.Duration) ([]byte, error) {
-	c.SetReadDeadline(time.Now().Add(timeout))
+func (c *conn) ReadUntil(delim byte, deadline time.Time) ([]byte, error) {
+	c.SetReadDeadline(deadline)
 	return c.rw.ReadBytes(delim)
 }
