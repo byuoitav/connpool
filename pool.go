@@ -79,8 +79,13 @@ func (p *Pool) Do(ctx context.Context, work Work) error {
 						p.infof("Reusing open connection")
 					}
 
+					deadline, ok := req.ctx.Deadline()
+					if !ok {
+						deadline = time.Now().Add(p.TTL)
+					}
+
 					// reset the buffer by reading everything currently in it
-					bytes, err := conn.EmptyReadBuffer(p.TTL)
+					bytes, err := conn.EmptyReadBuffer(deadline)
 					switch {
 					case err != nil:
 						req.resp <- fmt.Errorf("failed to empty buffer: %s", err)
